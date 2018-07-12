@@ -8,6 +8,7 @@ using System.Net.Http;
 
 namespace Microsoft.Bot.Sample.SimpleEchoBot
 {
+
     [Serializable]
     public class EchoDialog : IDialog<object>
     {
