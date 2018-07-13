@@ -4,8 +4,6 @@ VisualStudioVersion = 15.0.27004.2008
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Microsoft.Bot.Sample.SimpleEchoBot", "Microsoft.Bot.Sample.SimpleEchoBot.csproj", "{9C7E3A46-B60F-4052-9A21-DC8D1A942216}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Travel Website", "..\TravelAgentWebApp\Travel Website.csproj", "{359927A9-476E-41CC-B7F3-55EEB3E97FC2}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -16,10 +14,6 @@ Global
 		{9C7E3A46-B60F-4052-9A21-DC8D1A942216}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9C7E3A46-B60F-4052-9A21-DC8D1A942216}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9C7E3A46-B60F-4052-9A21-DC8D1A942216}.Release|Any CPU.Build.0 = Release|Any CPU
-		{359927A9-476E-41CC-B7F3-55EEB3E97FC2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{359927A9-476E-41CC-B7F3-55EEB3E97FC2}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{359927A9-476E-41CC-B7F3-55EEB3E97FC2}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{359927A9-476E-41CC-B7F3-55EEB3E97FC2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
