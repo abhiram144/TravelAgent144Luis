@@ -22,5 +22,7 @@ namespace SimpleEchoBot.Models
         public string DateOfTravel { get; set; }
 
         public string Class { get; set; }
+
+        public DateTime ConvertedDateTime { get; set; }
     }
 }

@@ -40,9 +40,33 @@ namespace LuisBot.Dialogs
 
         //private IList<string> titleOptions = new List<string> { "“Very stylish, great stay, great staff”", "“good hotel awful meals”", "“Need more attention to little things”", "“Lovely small hotel ideally situated to explore the area.”", "“Positive surprise”", "“Beautiful suite and resort”" };
 
-        public RootLuisDialog()
-        {
+      
 
+        private async Task<TravelBooking> PromptUserForData(IDialogContext context, IAwaitable<IMessageActivity> activity, LuisResult result, TravelBooking bookingInfo)
+        {
+            var travelFormDialog = new FormDialog<TravelBooking>(bookingInfo, this.BuildTravelsForm, FormOptions.PromptInStart, result.Entities);
+            //if (!IsDataValid(bookingInfo))
+            //    context.Post()
+                context.Call(travelFormDialog, this.ResumeAfterTravelFormDialog);
+            return bookingInfo;
+        }
+
+        private bool IsDataValid(TravelBooking travelBooking)
+        {
+            if (string.IsNullOrEmpty(travelBooking.FromLocation) || string.IsNullOrEmpty(ToLocation) || string.IsNullOrEmpty(travelBooking.TravelType))
+                return false;
+            if (ParseChronicDate(travelBooking.DateOfTravel).HasValue)
+                return true;
+            return false;
+        }
+
+        private DateTime? ParseChronicDate(string dateTime)
+        {
+            if (string.IsNullOrEmpty(dateTime))
+                return null;
+            Parser parser = new Parser();
+            var dateResult = parser.Parse(dateTime);
+            return dateResult.Start;
         }
 
         [LuisIntent("")]
@@ -96,8 +120,8 @@ namespace LuisBot.Dialogs
                 bookingInfo.Class = travelEntityClass.Entity;
             }
 
-            var travelFormDialog = new FormDialog<TravelBooking>(bookingInfo, this.BuildTravelsForm, FormOptions.PromptInStart, result.Entities);
-
+            //while(!IsDataValid(bookingInfo))
+                await PromptUserForData(context, activity, result, bookingInfo);
             //var hotelsQuery = new HotelsQuery();
 
             //EntityRecommendation cityEntityRecommendation;
@@ -108,31 +132,60 @@ namespace LuisBot.Dialogs
             //}
 
             //var hotelsFormDialog = new FormDialog<HotelsQuery>(hotelsQuery, this.BuildHotelsForm, FormOptions.PromptInStart, result.Entities);
-
-            context.Call(travelFormDialog, this.ResumeAfterTravelFormDialog);
+            //context.Call(travelFormDialog, this.ResumeAfterTravelFormDialog);
             return bookingInfo;
         }
-
         [LuisIntent("Book Bus")]
         //[LuisIntent("")]
-        public async Task Travelling(IDialogContext context, IAwaitable<IMessageActivity> activity, LuisResult result)
+        public async Task TravellingBus(IDialogContext context, IAwaitable<IMessageActivity> activity, LuisResult result)
         {
             var message = await activity;
             await context.PostAsync($"Welcome to the Bus finder! We are analyzing your message: '{message.Text}'...");
             var entityResult = UnWrapEntities(context, activity, result).Result;
         }
 
+
+        [LuisIntent("Book Flight")]
+        //[LuisIntent("")]
+        public async Task TravellingFlight(IDialogContext context, IAwaitable<IMessageActivity> activity, LuisResult result)
+        {
+            var message = await activity;
+            await context.PostAsync($"Welcome to the Bus finder! We are analyzing your message: '{message.Text}'...");
+            var entityResult = UnWrapEntities(context, activity, result).Result;
+        }
+
+        public static string ToAbsoluteUrl(string relativeUrl)
+        {
+            if (string.IsNullOrEmpty(relativeUrl))
+                return relativeUrl;
+
+            if (HttpContext.Current == null)
+                return relativeUrl;
+
+            if (relativeUrl.StartsWith("/"))
+                relativeUrl = relativeUrl.Insert(0, "~");
+            if (!relativeUrl.StartsWith("~/"))
+                relativeUrl = relativeUrl.Insert(0, "~/");
+
+            var url = HttpContext.Current.Request.Url;
+            var port = url.Port != 80 ? (":" + url.Port) : String.Empty;
+
+            return String.Format("{0}://{1}{2}{3}",
+                url.Scheme, url.Host, port, VirtualPathUtility.ToAbsolute(relativeUrl));
+        }
         private async Task ResumeAfterTravelFormDialog(IDialogContext context, IAwaitable<TravelBooking> result)
         {
             var travelInfo = await result;
             if (string.IsNullOrEmpty(travelInfo.TravelType))
                 travelInfo.TravelType = "Buses";
-            Parser parser = new Parser();
-            var dateResult = parser.Parse(travelInfo.DateOfTravel);
-            await context.PostAsync($"Now {travelInfo.TravelType} will be searched");
-            await context.PostAsync("Now I am going to make some quick calls to get the details Hold tight .... It may take a minute since we are using all cheap resources to accumulate the data .");
+            if (!string.IsNullOrEmpty(travelInfo.DateOfTravel) && ParseChronicDate(travelInfo.DateOfTravel).HasValue)
+                travelInfo.ConvertedDateTime = ParseChronicDate(travelInfo.DateOfTravel).Value;
+            if (travelInfo.ConvertedDateTime == DateTime.MinValue)
+                travelInfo.ConvertedDateTime = DateTime.Now.Date;
+            //await context.PostAsync($"Now {travelInfo.TravelType} will be searched");
+            await context.PostAsync("Now I am going to make some quick calls to get the details... Hold on tight .... It may take a minute since we are using all cheap resources to accumulate the data .");
             BusSearch busSearchHelper = new BusSearch();
-            var bussesAndFlights = busSearchHelper.SearchBusses(travelInfo.FromLocation, travelInfo.ToLocation, dateResult.Start.HasValue ? dateResult.Start.Value : DateTime.Today.Date);
+            var bussesAndFlights = busSearchHelper.SearchBusses(travelInfo.FromLocation, travelInfo.ToLocation, travelInfo.ConvertedDateTime.AddDays(1));
             if (bussesAndFlights.data == null || bussesAndFlights.data.onwardflights == null || bussesAndFlights.data.onwardflights.Count() == 0)
                 await context.PostAsync($"Sorry I cant find any {travelInfo.TravelType} from {travelInfo.FromLocation} to {travelInfo.ToLocation}");
             else
@@ -140,21 +193,25 @@ namespace LuisBot.Dialogs
                 var resultMessage = context.MakeMessage();
                 resultMessage.AttachmentLayout = AttachmentLayoutTypes.Carousel;
                 resultMessage.Attachments = new List<Attachment>();
-                foreach (var busOrFlight in bussesAndFlights.data.onwardflights)
+                var nonAcURL = ToAbsoluteUrl("/Images/Non AC bus.jpg");
+                var acUrl = ToAbsoluteUrl("/Images/AC bus.jpg");
+                foreach (var busOrFlight in bussesAndFlights.data.onwardflights.OrderByDescending(x => x.depdate))
                 {
+                    var routeType = busOrFlight.RouteSeatTypeDetail.list.FirstOrDefault();
                     HeroCard heroCard = new HeroCard()
                     {
-                        Title = busOrFlight.busCompany,
-                        Subtitle = $"{busOrFlight.BusType} starts at {busOrFlight.DepartureTime} to ${busOrFlight.destination} per night @{busOrFlight.fare}",
+                        Title = busOrFlight.TravelsName,
+                        Subtitle = $"{busOrFlight.BusType} starts at {busOrFlight.DepartureTime} to {busOrFlight.destination}  @{busOrFlight.fare.totalfare}",
+                        Text = $"Departs on {busOrFlight.depdate} at {busOrFlight.DepartureTime} Origin - {busOrFlight.origin} service number - {busOrFlight.BusServiceID} reaches {busOrFlight.destination} at {busOrFlight.arrdate} ",
                         Images = new List<CardImage>()
                         {
-                            new CardImage() { Url = "https://www.akshatblog.com/wp-content/uploads/2014/10/Book-Bus-Tickets-Online.jpg" }
+                            new CardImage() { Url = routeType == null ? nonAcURL : (routeType.busCondition.Contains("nonac") ? nonAcURL : acUrl) }
                         },
                         Buttons = new List<CardAction>()
                         {
                             new CardAction()
                             {
-                                Title = "More details",
+                                Title = "Book Now",
                                 Type = ActionTypes.OpenUrl,
                                 Value = $"https://www.google.com"
                             }

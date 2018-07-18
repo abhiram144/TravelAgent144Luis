@@ -187,6 +187,8 @@
   <ItemGroup>
     <Content Include="default.htm" />
     <Content Include="Global.asax" />
+    <Content Include="Images\AC Bus.jpg" />
+    <Content Include="Images\Non AC bus.jpg" />
     <Content Include="Web.config" />
   </ItemGroup>
   <ItemGroup>

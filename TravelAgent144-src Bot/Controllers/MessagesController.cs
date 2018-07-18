@@ -36,7 +36,7 @@ namespace Microsoft.Bot.Sample.SimpleEchoBot
             }
             catch(Exception ex)
             {
-                return new HttpResponseMessage(System.Net.HttpStatusCode.Accepted);
+                return new HttpResponseMessage(System.Net.HttpStatusCode.InternalServerError) { ReasonPhrase = ex.ToString() };
             }
            
         }
