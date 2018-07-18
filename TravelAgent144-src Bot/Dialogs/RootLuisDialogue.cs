@@ -10,13 +10,28 @@ namespace LuisBot.Dialogs
     using Microsoft.Bot.Builder.Luis;
     using Microsoft.Bot.Builder.Luis.Models;
     using Microsoft.Bot.Connector;
-
+    using SimpleEchoBot.Models;
+    using Travel_Website.Repository;
+    using Chronic;
 
     [LuisModel("16816e8d-34d5-4eb4-b2ae-c1c1590d98ba", "d8c7c7db62134d9db0359a9845fb6d8c")]
     //[LuisModel("4bd9e4fa-8d7d-4b52-b968-43a2dd995cdd", "ff0cc11d49a14688844b74873bb9a97c")]
     [Serializable]
     public class RootLuisDialog : LuisDialog<object>
     {
+
+        private const string ToLocation = "Location::ToLocation";
+
+        private const string TravelBookingInfo = "Travel Book Info";
+
+        private const string FromLocation = "Location::FromLocation";
+
+        private const string DateOfTravel = "datetimeV2";
+
+        private const string Class = "Class";
+
+        public const string TravelType = "Travel Type";
+
         //private const string EntityGeographyCity = "builtin.geography.city";
 
         //private const string EntityHotelName = "Hotel";
@@ -25,24 +40,63 @@ namespace LuisBot.Dialogs
 
         //private IList<string> titleOptions = new List<string> { "“Very stylish, great stay, great staff”", "“good hotel awful meals”", "“Need more attention to little things”", "“Lovely small hotel ideally situated to explore the area.”", "“Positive surprise”", "“Beautiful suite and resort”" };
 
+        public RootLuisDialog()
+        {
 
-       
+        }
+
         [LuisIntent("")]
         [LuisIntent("None")]
         public async Task None(IDialogContext context, LuisResult result)
         {
-            string message = $"Sorry, I did not understand '{result.Query}'. Type 'help' if you need assistance.";
+            string message = $"Sorry, I did not understand '{result.Query}'. Type 'help' if you need assistance. Huff .... These programmers !!!! I have so much intelligence but my programmers need to work on the way to harness it. PS:: Not my fault :p";
 
             await context.PostAsync(message);
 
             context.Wait(this.MessageReceived);
         }
 
-        [LuisIntent("Travelling")]
-        public async Task Travelling(IDialogContext context, IAwaitable<IMessageActivity> activity, LuisResult result)
+        private async Task<TravelBooking> UnWrapEntities(IDialogContext context, IAwaitable<IMessageActivity> activity, LuisResult result)
         {
-            var message = await activity;
-            await context.PostAsync($"Welcome to the Bus finder! We are analyzing your message: '{message.Text}'...");
+            TravelBooking bookingInfo = new TravelBooking();
+
+            EntityRecommendation travelEntityDate;
+            EntityRecommendation travelEntityToLocation;
+            EntityRecommendation travelEntityFromLocation;
+            EntityRecommendation travelEntityClass;
+            EntityRecommendation travelEntityTravelType;
+
+            if (result.TryFindEntity(TravelType, out travelEntityTravelType))
+            {
+                bookingInfo.TravelType = travelEntityTravelType.Entity;
+            }
+
+
+            if (result.TryFindEntity(FromLocation, out travelEntityFromLocation))
+            {
+                bookingInfo.FromLocation = travelEntityFromLocation.Entity;
+            }
+
+            if (result.TryFindEntity(ToLocation, out travelEntityToLocation))
+            {
+                bookingInfo.ToLocation = travelEntityToLocation.Entity;
+            }
+
+            if (result.TryFindEntity(DateOfTravel, out travelEntityDate))
+            {
+                //bookingInfo.DateOfTravel = travelEntityDate.Entity;
+
+                Parser parser = new Parser();
+                var dateResult = parser.Parse(travelEntityDate.Entity);
+
+            }
+
+            if (result.TryFindEntity(Class, out travelEntityClass))
+            {
+                bookingInfo.Class = travelEntityClass.Entity;
+            }
+
+            var travelFormDialog = new FormDialog<TravelBooking>(bookingInfo, this.BuildTravelsForm, FormOptions.PromptInStart, result.Entities);
 
             //var hotelsQuery = new HotelsQuery();
 
@@ -55,8 +109,89 @@ namespace LuisBot.Dialogs
 
             //var hotelsFormDialog = new FormDialog<HotelsQuery>(hotelsQuery, this.BuildHotelsForm, FormOptions.PromptInStart, result.Entities);
 
-            //context.Call(hotelsFormDialog, this.ResumeAfterHotelsFormDialog);
+            context.Call(travelFormDialog, this.ResumeAfterTravelFormDialog);
+            return bookingInfo;
         }
+
+        [LuisIntent("Book Bus")]
+        //[LuisIntent("")]
+        public async Task Travelling(IDialogContext context, IAwaitable<IMessageActivity> activity, LuisResult result)
+        {
+            var message = await activity;
+            await context.PostAsync($"Welcome to the Bus finder! We are analyzing your message: '{message.Text}'...");
+            var entityResult = UnWrapEntities(context, activity, result).Result;
+        }
+
+        private async Task ResumeAfterTravelFormDialog(IDialogContext context, IAwaitable<TravelBooking> result)
+        {
+            var travelInfo = await result;
+            if (string.IsNullOrEmpty(travelInfo.TravelType))
+                travelInfo.TravelType = "Buses";
+            Parser parser = new Parser();
+            var dateResult = parser.Parse(travelInfo.DateOfTravel);
+            await context.PostAsync($"Now {travelInfo.TravelType} will be searched");
+            await context.PostAsync("Now I am going to make some quick calls to get the details Hold tight .... It may take a minute since we are using all cheap resources to accumulate the data .");
+            BusSearch busSearchHelper = new BusSearch();
+            var bussesAndFlights = busSearchHelper.SearchBusses(travelInfo.FromLocation, travelInfo.ToLocation, dateResult.Start.HasValue ? dateResult.Start.Value : DateTime.Today.Date);
+            if (bussesAndFlights.data == null || bussesAndFlights.data.onwardflights == null || bussesAndFlights.data.onwardflights.Count() == 0)
+                await context.PostAsync($"Sorry I cant find any {travelInfo.TravelType} from {travelInfo.FromLocation} to {travelInfo.ToLocation}");
+            else
+            {
+                var resultMessage = context.MakeMessage();
+                resultMessage.AttachmentLayout = AttachmentLayoutTypes.Carousel;
+                resultMessage.Attachments = new List<Attachment>();
+                foreach (var busOrFlight in bussesAndFlights.data.onwardflights)
+                {
+                    HeroCard heroCard = new HeroCard()
+                    {
+                        Title = busOrFlight.busCompany,
+                        Subtitle = $"{busOrFlight.BusType} starts at {busOrFlight.DepartureTime} to ${busOrFlight.destination} per night @{busOrFlight.fare}",
+                        Images = new List<CardImage>()
+                        {
+                            new CardImage() { Url = "https://www.akshatblog.com/wp-content/uploads/2014/10/Book-Bus-Tickets-Online.jpg" }
+                        },
+                        Buttons = new List<CardAction>()
+                        {
+                            new CardAction()
+                            {
+                                Title = "More details",
+                                Type = ActionTypes.OpenUrl,
+                                Value = $"https://www.google.com"
+                            }
+                        }
+                    };
+
+                    resultMessage.Attachments.Add(heroCard.ToAttachment());
+                }
+                await context.PostAsync(resultMessage);
+            }
+        }
+
+        private IForm<TravelBooking> BuildTravelsForm()
+        {
+            OnCompletionAsyncDelegate<TravelBooking> TravelBookingSearch = async (context, state) =>
+            {
+                var message = "Searching for ";
+                if (!string.IsNullOrEmpty(state.TravelType))
+                {
+                    message += $" {state.TravelType}...";
+                }
+                //else if (!string.IsNullOrEmpty(state.AirportCode))
+                //{
+                //    message += $" near {state.AirportCode.ToUpperInvariant()} airport...";
+                //}
+
+                await context.PostAsync(message);
+            };
+
+            return new FormBuilder<TravelBooking>()
+                .Field(nameof(TravelBooking.FromLocation), (state) => string.IsNullOrEmpty(state.FromLocation))
+                .Field(nameof(TravelBooking.ToLocation), (state) => string.IsNullOrEmpty(state.ToLocation))
+                .Field(nameof(TravelBooking.DateOfTravel), (state) => string.IsNullOrEmpty(state.DateOfTravel))
+                .OnCompletion(TravelBookingSearch)
+                .Build();
+        }
+
 
         //[LuisIntent("ShowHotelsReviews")]
         //public async Task Reviews(IDialogContext context, LuisResult result)
@@ -93,13 +228,13 @@ namespace LuisBot.Dialogs
         //    context.Wait(this.MessageReceived);
         //}
 
-        //[LuisIntent("Help")]
-        //public async Task Help(IDialogContext context, LuisResult result)
-        //{
-        //    await context.PostAsync("Hi! Try asking me things like 'search hotels in Seattle', 'search hotels near LAX airport' or 'show me the reviews of The Bot Resort' developeed by abhi");
+        [LuisIntent("OnDevice.Help")]
+        public async Task Help(IDialogContext context, LuisResult result)
+        {
+            await context.PostAsync("Hi I am currently learning on how to become a travel assistant ..... I am still very young and trying my best ... I am here to help! Try asking me things like 'Busses from Hyderabad to Banglore', 'Flights to delhi' or 'weather in Bombay'");
 
-        //    context.Wait(this.MessageReceived);
-        //}
+            context.Wait(this.MessageReceived);
+        }
 
         //private IForm<HotelsQuery> BuildHotelsForm()
         //{

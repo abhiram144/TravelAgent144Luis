@@ -191,13 +191,21 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="App_Start\WebApiConfig.cs" />
+    <Compile Include="Common\BusinessConstants.cs" />
+    <Compile Include="Common\Enums.cs" />
+    <Compile Include="Common\IHttpClient.cs" />
+    <Compile Include="Common\WebApiClient.cs" />
     <Compile Include="Controllers\MessagesController.cs" />
+    <Compile Include="Data Models\BusSearch.cs" />
     <Compile Include="Dialogs\EchoDialog.cs" />
     <Compile Include="Dialogs\RootLuisDialogue.cs" />
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
+    <Compile Include="Helpers\GoibiboHelper.cs" />
+    <Compile Include="Models\TravelBooking.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Repository\BusSearch.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="packages.config" />

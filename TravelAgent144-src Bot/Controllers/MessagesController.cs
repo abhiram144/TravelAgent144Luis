@@ -6,6 +6,7 @@ using Microsoft.Bot.Builder.Dialogs;
 using System.Web.Http.Description;
 using System.Net.Http;
 using LuisBot.Dialogs;
+using System;
 
 namespace Microsoft.Bot.Sample.SimpleEchoBot
 {
@@ -20,16 +21,24 @@ namespace Microsoft.Bot.Sample.SimpleEchoBot
         [ResponseType(typeof(void))]
         public virtual async Task<HttpResponseMessage> Post([FromBody] Activity activity)
         {
-            // check if activity is of type message
-            if (activity != null && activity.GetActivityType() == ActivityTypes.Message)
+            try
             {
-                await Conversation.SendAsync(activity, () => new RootLuisDialog());
+                // check if activity is of type message
+                if (activity != null && activity.GetActivityType() == ActivityTypes.Message)
+                {
+                    await Conversation.SendAsync(activity, () => new RootLuisDialog());
+                }
+                else
+                {
+                    HandleSystemMessage(activity);
+                }
+                return new HttpResponseMessage(System.Net.HttpStatusCode.Accepted);
             }
-            else
+            catch(Exception ex)
             {
-                HandleSystemMessage(activity);
+                return new HttpResponseMessage(System.Net.HttpStatusCode.Accepted);
             }
-            return new HttpResponseMessage(System.Net.HttpStatusCode.Accepted);
+           
         }
 
         private Activity HandleSystemMessage(Activity message)
